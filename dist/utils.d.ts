@@ -16,8 +16,9 @@ declare const _default: {
         (...data: any[]): void;
         (message?: any, ...optionalParams: any[]): void;
     };
-    documentSavePath: (filePath: string, outputFileName: string) => any;
+    documentSavePath: (filePath: string, outputFileName: string) => string;
     getFileName: (filePath: string) => string;
+    getCommonPathPrefix: (paths: string[]) => string;
     getFileExtension: (filePath: string) => ".xlsx" | ".json";
     isJSON: (sourceFileType: string) => boolean;
     isXLSX: (sourceFileType: string) => boolean;

@@ -1,4 +1,4 @@
-const path = require('path');
+import * as path from 'path';
 const { red, yellow } = require('chalk');
 
 const error = console.error;
@@ -7,25 +7,12 @@ const info = console.info;
 const warn = console.warn;
 
 const documentSavePath = (filePath: string, outputFileName: string) => {
-  let destinationPath = '';
-
-  if (filePath.includes('\\')) {
-    destinationPath = filePath.substr(0, filePath.lastIndexOf('\\'));
-  } else if (filePath.includes('/')) {
-    destinationPath = filePath.substr(0, filePath.lastIndexOf('/'));
-  }
-
+  const destinationPath = path.dirname(filePath);
   return path.resolve(destinationPath, outputFileName);
 };
 
 const getFileName = (filePath: string) => {
-  if (filePath.includes('\\')) {
-    return filePath.substr(filePath.lastIndexOf('\\') + 1, filePath.length - 1).split('.')[0];
-  } else if (filePath.includes('/')) {
-    return filePath.substr(filePath.lastIndexOf('/') + 1, filePath.length - 1).split('.')[0];
-  }
-
-  return filePath.split('.')[0];
+  return path.parse(filePath).name
 };
 
 const isJSON = (sourceFileType: string) => sourceFileType === 'json';
@@ -33,12 +20,11 @@ const isJSON = (sourceFileType: string) => sourceFileType === 'json';
 const isXLSX = (sourceFileType: string) => sourceFileType === 'xlsx';
 
 const getSourceFileType = (filePath: string) => {
-  return (filePath.split('.')[1] || '').toLowerCase();
+  return path.extname(filePath).substring(1).toLowerCase();
 };
 
 const getFileExtension = (filePath: string) => {
-  const sourceFileType = (filePath.split('.')[1] || '').toLowerCase();
-
+  const sourceFileType = getSourceFileType(filePath);
   return !isXLSX(sourceFileType) ? '.xlsx' : '.json';
 };
 
@@ -116,6 +102,18 @@ const getJSONFilePaths = (filePath: string) => {
   return filePath.split(',').map((JSONFilePath) => JSONFilePath.trim());
 };
 
+const getCommonPathPrefix = (paths: string[]) => {
+  return paths.reduce((p1, p2) => {
+    for (let i = p1.length ; i>0; i--) {
+      const part = p1.substring(0, i);
+      if (p2.startsWith(part)) {
+        return part;
+      }
+    }
+    return '';
+  })
+}
+
 export default {
   log,
   warn,
@@ -123,6 +121,7 @@ export default {
   error,
   documentSavePath,
   getFileName,
+  getCommonPathPrefix,
   getFileExtension,
   isJSON,
   isXLSX,

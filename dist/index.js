@@ -6,29 +6,28 @@ const chalk = require('chalk');
 const readXLSXFile = require('read-excel-file/node');
 const Excel = require('exceljs');
 const unflatten = require('flat').unflatten;
+const path = require("path");
 const utils_1 = require("./utils");
 (async () => {
     try {
-        const path = process.argv.slice(3);
-        const filePath = utils_1.default.createPathByCheckingSpaceCharacter(path);
-        if (!filePath || typeof filePath === 'boolean') {
-            utils_1.default.parseErrorMessage('No file path to convert is given. Specify the file path after the --convert parameter.');
-            process.exit(1);
-        }
-        const sourceFileType = utils_1.default.getSourceFileType(filePath);
-        const isMultipleJSONFilePaths = utils_1.default.getJSONFilePaths(filePath).length > 1;
-        const isMultipleJSONFilePathsValid = utils_1.default.isMultipleJSONFilePathsValid(filePath);
-        if (utils_1.default.isJSON(sourceFileType) || utils_1.default.isXLSX(sourceFileType) || isMultipleJSONFilePathsValid) {
-            utils_1.default.createProcessMessageByType(filePath, sourceFileType, (isMultipleJSONFilePathsValid && isMultipleJSONFilePaths));
-        }
-        else {
-            utils_1.default.checkForMultipleJSONFileErrors(filePath, process);
+        const files = process.argv.slice(2);
+        const sourceFileType = files.map((v) => {
+            return utils_1.default.getSourceFileType(v);
+        }).reduce((p1, p2) => {
+            if (p1 === p2) {
+                return p1;
+            }
+            else {
+                return '';
+            }
+        });
+        if (!(utils_1.default.isJSON(sourceFileType) || utils_1.default.isXLSX(sourceFileType))) {
             utils_1.default.parseErrorMessage('File type is not supported. Either use JSON or XLSX file to convert.');
             process.exit(1);
         }
         if (utils_1.default.isXLSX(sourceFileType)) {
-            const readXlsx = () => {
-                return readXLSXFile(filePath).then((rows) => {
+            const readXlsx = (file) => {
+                return readXLSXFile(file).then((rows) => {
                     const titleRow = rows[0];
                     const allLanguages = {};
                     const titles = [];
@@ -42,47 +41,74 @@ const utils_1 = require("./utils");
                         const row = rows[idx];
                         for (let secondIdx = 1; secondIdx < row.length; secondIdx++) {
                             if (row[0]) {
-                                allLanguages[titles[secondIdx]][row[0]] = row[secondIdx];
+                                allLanguages[titles[secondIdx]][row[0]] = row[secondIdx].replace(/\r/g, '');
                             }
                         }
                     }
                     return allLanguages;
                 });
             };
-            readXlsx()
-                .then((allLanguages) => {
-                let outputFileName = '';
-                for (const languageTitle in allLanguages) {
-                    outputFileName = `${languageTitle.trim().toLowerCase()}${utils_1.default.getFileExtension(filePath)}`;
-                    const unflattenedLanguageObj = unflatten(allLanguages[languageTitle], { object: true });
-                    fs.writeFileSync(utils_1.default.documentSavePath(filePath, outputFileName), JSON.stringify(unflattenedLanguageObj, null, 2), 'utf-8');
-                    utils_1.default.log(chalk.yellow(`Output file name for ${languageTitle} is ${outputFileName}`));
-                    utils_1.default.log(chalk.grey(`Location of the created file is`));
-                    utils_1.default.log(chalk.magentaBright(`${utils_1.default.documentSavePath(filePath, outputFileName)}\n`));
-                }
-                utils_1.default.log(chalk.green(`File conversion is successful!`));
-            })
-                .catch((e) => {
-                utils_1.default.error(chalk.red(`Error: ${e}`));
-                process.exit(1);
-            });
+            for (const file of files) {
+                readXlsx(file)
+                    .then((allLanguages) => {
+                    let outputFileName = '';
+                    for (const languageTitle in allLanguages) {
+                        outputFileName = `${languageTitle.trim().toLowerCase()}${utils_1.default.getFileExtension(file)}`;
+                        const unflattenedLanguageObj = unflatten(allLanguages[languageTitle], { object: true });
+                        fs.writeFileSync(utils_1.default.documentSavePath(file, outputFileName), JSON.stringify(unflattenedLanguageObj, null, 2), 'utf-8');
+                        utils_1.default.log(chalk.yellow(`Output file name for ${languageTitle} is ${outputFileName}`));
+                        utils_1.default.log(chalk.grey(`Location of the created file is`));
+                        utils_1.default.log(chalk.magentaBright(`${utils_1.default.documentSavePath(file, outputFileName)}\n`));
+                    }
+                    utils_1.default.log(chalk.green(`File conversion is successful!`));
+                })
+                    .catch((e) => {
+                    utils_1.default.error(chalk.red(`Error: ${e}`));
+                    process.exit(1);
+                });
+            }
         }
         else {
-            const JSONFiles = utils_1.default.getJSONFilePaths(filePath);
-            for (const JSONFile of JSONFiles) {
+            let outputFile;
+            if (files.length > 1) {
+                const commonPrefix = utils_1.default.getCommonPathPrefix(files);
+                if (commonPrefix === '') {
+                    utils_1.default.error(chalk.red(`Error: No common path prefix for output file`));
+                    process.exit(1);
+                }
+                let inputCommon = path.parse(commonPrefix);
+                outputFile = path.resolve(inputCommon.dir, `${inputCommon.name}translation.xlsx`);
+            }
+            else {
+                let inputFile = path.parse(files[0]);
+                outputFile = path.resolve(inputFile.dir, `${inputFile.name}.xlsx`);
+            }
+            const workbook = new Excel.Workbook();
+            const worksheet = workbook.addWorksheet('Converted');
+            let keysToRow = {};
+            let columnIndex = 2;
+            let rowCount = 1;
+            const writeToXLSX = (key, value) => {
+                let rowIdx = keysToRow[key];
+                let writeCol1 = false;
+                if (rowIdx === undefined) {
+                    rowIdx = rowCount;
+                    rowCount += 1;
+                    keysToRow[key] = rowIdx;
+                    writeCol1 = true;
+                }
+                const rows = worksheet.getRow(rowIdx);
+                if (writeCol1) {
+                    rows.getCell(1).value = key;
+                }
+                rows.getCell(columnIndex).value = (value || '-').toString();
+            };
+            for (const JSONFile of files) {
+                utils_1.default.log(chalk.yellow('Read the JSON file for column ' + utils_1.default.getFileName(JSONFile)));
+                utils_1.default.log(chalk.grey('Reading ' + JSONFile));
                 const sourceBuffer = await fs.promises.readFile(JSONFile);
                 const sourceText = sourceBuffer.toString();
                 const sourceData = JSON.parse(sourceText);
-                const workbook = new Excel.Workbook();
-                const worksheet = workbook.addWorksheet('Converted');
-                let rowCount = 1;
-                const writeToXLSX = (key, value) => {
-                    const rows = worksheet.getRow(rowCount);
-                    rows.getCell(1).value = key;
-                    // Check for null, "" of the values and assign semantic character for that
-                    rows.getCell(2).value = (value || '-').toString();
-                    rowCount += 1;
-                };
                 writeToXLSX('Key', utils_1.default.getFileName(JSONFile).toUpperCase());
                 const parseAndWrite = (parentKey, targetObject) => {
                     const keys = Object.keys(targetObject);
@@ -97,21 +123,24 @@ const utils_1 = require("./utils");
                     }
                 };
                 parseAndWrite(null, sourceData);
-                worksheet.getColumn(1).width = 50;
-                worksheet.getColumn(2).width = 50;
-                await workbook.xlsx
-                    .writeFile(utils_1.default.documentSavePath(JSONFile, `${utils_1.default.getFileName(JSONFile)}.xlsx`))
-                    .then(() => {
-                    utils_1.default.log(chalk.yellow(`Output file name is ${utils_1.default.getFileName(JSONFile)}${utils_1.default.getFileExtension(JSONFile)}`));
-                    utils_1.default.log(chalk.grey(`Location of the created file is`));
-                    utils_1.default.log(chalk.magentaBright(`${utils_1.default.documentSavePath(JSONFile, `${utils_1.default.getFileName(JSONFile)}${utils_1.default.getFileExtension(JSONFile)}`)}\n`));
-                    utils_1.default.log(chalk.green(`File conversion is successful!\n`));
-                })
-                    .catch((e) => {
-                    utils_1.default.error(chalk.red(`Error: ${e}`));
-                    process.exit(1);
-                });
+                columnIndex += 1;
             }
+            for (let i = 1; i < columnIndex; i++) {
+                const col = worksheet.getColumn(i);
+                col.width = 50;
+                col.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
+            }
+            utils_1.default.log(chalk.yellow(`Location of the created file is`));
+            utils_1.default.log(chalk.magentaBright(outputFile));
+            await workbook.xlsx
+                .writeFile(outputFile)
+                .then(() => {
+                utils_1.default.log(chalk.green(`File conversion is successful!\n`));
+            })
+                .catch((e) => {
+                utils_1.default.error(chalk.red(`Error: ${e}`));
+                process.exit(1);
+            });
         }
     }
     catch (e) {
