@@ -1,0 +1,7 @@
+#!/bin/bash
+
+self=$(realpath $0)
+base_dir=$(dirname $self)
+
+export NODE_PATH=${base_dir}/node_modules
+node ${base_dir}/dist/index.js "$@"

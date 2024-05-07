@@ -1,8 +1,8 @@
 {
-  "name": "i18n-json-to-xlsx-converter",
-  "version": "2.0.0",
-  "description": "i18n JSON to XLSX Converter is a CLI tool helps you convert your JSON files to XLSX format easily.",
-  "author": "Osman Fikret Ceylan",
+  "name": "i18n-jsons-to-xlsx-converter",
+  "version": "2.0.1",
+  "description": "i18n JSONs to/from XLSX Converter is a CLI tool helps you convert your JSON files to/from XLSX format easily.",
+  "author": "MoonKyu Song",
   "license": "MIT",
   "main": "./dist/index.js",
   "bin": "./dist/index.js",
@@ -23,7 +23,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ofcyln/i18n-json-to-xlsx-converter.git"
+    "url": "git+https://github.com/mksong76/i18n-jsons-to-xlsx-converter.git"
   },
   "keywords": [
     "translation",
